@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = TimeMachine.skipPaths
         windowController = MainWindowController()
         NSApp.mainMenu = MainMenu.build(browser: windowController.browser)
         windowController.showWindow(nil)

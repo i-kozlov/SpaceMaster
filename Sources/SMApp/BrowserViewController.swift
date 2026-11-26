@@ -23,7 +23,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
     private(set) var sortKey = SortKey(rawValue: UserDefaults.standard.string(forKey: "sm.sort") ?? "") ?? .size
     private(set) var sortReversed = UserDefaults.standard.bool(forKey: "sm.sortReversed")
     private(set) var showHidden = UserDefaults.standard.object(forKey: "sm.showHidden") as? Bool ?? true
-    private(set) var showSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? true
+    private(set) var showSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? false
     private var filter = ""
     private var pendingPrefix: String?
     private var timer: Timer?
@@ -89,6 +89,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         } catch { s.error = error.localizedDescription }
         s.folderExcluded = TimeMachine.isExcludedWithAncestors(path)
         s.backupExcluded = Set(s.entries.lazy.map(\.name).filter { TimeMachine.isExcluded(path == "/" ? "/" + $0 : path + "/" + $0) })
+        s.settingsExcluded = Set(s.entries.lazy.map(\.name).filter { TimeMachine.skipPaths.contains(path == "/" ? "/" + $0 : path + "/" + $0) })
         s.rebuild(model: model, sort: sortKey, reversed: sortReversed, showHidden: showHidden, filter: path == cwd ? filter : "")
         states[path] = s
         stateOrder.removeAll { $0 == path }
@@ -822,6 +823,9 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
             let rows = targets()
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .own }) {
                 item.title = "Вернуть в Time Machine"; return true
+            }
+            if !rows.isEmpty && rows.allSatisfy({ $0.backup == .settings }) {
+                item.title = "Исключено в настройках Time Machine"; return false
             }
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .inherited }) {
                 item.title = "Исключено через папку выше"; return false

@@ -11,6 +11,7 @@ extension NSToolbarItem.Identifier {
     static let filter = NSToolbarItem.Identifier("sm.filter")
     static let up = NSToolbarItem.Identifier("sm.up")
     static let safety = NSToolbarItem.Identifier("sm.safety")
+    static let timeMachine = NSToolbarItem.Identifier("sm.timeMachine")
 }
 
 @MainActor
@@ -76,7 +77,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSToolb
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .nav, .up, .flexibleSpace, .sort, .safety, .reveal, .rescan, .trash, .delete, .filter]
+        [.toggleSidebar, .sidebarTrackingSeparator, .nav, .up, .flexibleSpace, .sort, .safety, .timeMachine, .reveal, .rescan, .trash, .delete, .filter]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -117,6 +118,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSToolb
             return i
         case .up: return button(.up, "Up", "arrow.up", #selector(BrowserViewController.goEnclosing(_:)), tip: "На уровень выше (⌘↑)")
         case .safety: return button(.safety, "Safe/Protected", "checkmark.shield", #selector(BrowserViewController.toggleSafety(_:)), tip: "Показать или скрыть столбец Safe/Protected")
+        case .timeMachine: return button(.timeMachine, "Time Machine", TimeMachine.symbol, #selector(BrowserViewController.toggleBackupExclusion(_:)), tip: "Исключить из Time Machine")
         case .reveal: return button(.reveal, "Reveal", "magnifyingglass.circle", #selector(BrowserViewController.revealInFinder(_:)), tip: "Reveal in Finder")
         case .rescan: return button(.rescan, "Rescan", "arrow.clockwise", #selector(BrowserViewController.rescan(_:)), tip: "Rescan this folder")
         case .trash: return button(.trash, "Trash", "trash", #selector(BrowserViewController.trashSelection(_:)), tip: "Move to Trash (⌘⌫)")
@@ -142,6 +144,14 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSToolb
         guard let sel = item.action else { return true }
         if sel == #selector(BrowserViewController.trashSelection(_:)) || sel == #selector(BrowserViewController.deleteSelection(_:)) {
             return browser.validateMenuItem(NSMenuItem(title: "", action: sel, keyEquivalent: ""))
+        }
+        if sel == #selector(BrowserViewController.toggleBackupExclusion(_:)) {
+            // Same rules and wording as the context menu item.
+            let m = NSMenuItem(title: "", action: sel, keyEquivalent: "")
+            let ok = browser.validateMenuItem(m)
+            item.toolTip = m.title
+            item.image = NSImage(systemSymbolName: TimeMachine.symbol, accessibilityDescription: m.title)
+            return ok
         }
         return true
     }

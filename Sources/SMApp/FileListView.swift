@@ -15,7 +15,7 @@ final class FileListView: NSView {
 
     var isActive = true { didSet { if isActive != oldValue { needsDisplay = true } } }
     var showsCursor = true { didSet { if showsCursor != oldValue { needsDisplay = true } } }
-    var showsSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? true { didSet { needsDisplay = true } }
+    var showsSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? false { didSet { needsDisplay = true } }
     var spinnerPhase: Double = 0
 
     var onClick: ((Int, NSEvent.ModifierFlags) -> Void)?
@@ -194,7 +194,7 @@ final class FileListView: NSView {
             let rowTertiary = onAccent ? NSColor.white.withAlphaComponent(0.65) : tertiary
 
             // Time Machine mark: only rows excluded themselves; a listing inside an excluded folder is marked in its header.
-            if r.backup == .own && !state.folderExcluded,
+            if (r.backup == .own || r.backup == .settings) && !state.folderExcluded,
                let img = icons.symbol(TimeMachine.symbol, size: 10, color: rowSecondary) {
                 img.draw(in: NSRect(x: 9 + (12 - img.size.width) / 2, y: y + (rh - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
@@ -318,7 +318,7 @@ final class FileListView: NSView {
         let p = convert(event.locationInWindow, from: nil)
         let r = rows[i]
         // Tooltip text explains the badge when hovering the right part of the row.
-        toolTip = p.x < 22 && r.backup == .own && state?.folderExcluded == false ? "Исключено из Time Machine"
+        toolTip = p.x < 22 && (r.backup == .own || r.backup == .settings) && state?.folderExcluded == false ? "Исключено из Time Machine"
             : showsSafety && p.x > bounds.width - 230 ? r.safety.reason : nil
     }
 

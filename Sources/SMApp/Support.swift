@@ -27,7 +27,7 @@ struct Row {
     var isDirectory: Bool { kind == .directory }
 }
 
-enum BackupExclusion { case none, own, inherited }
+enum BackupExclusion { case none, own, settings, inherited }
 
 /// Time Machine "sticky" exclusion: the extended attribute that `URLResourceValues.isExcludedFromBackup` sets.
 enum TimeMachine {
@@ -35,11 +35,18 @@ enum TimeMachine {
         getxattr(path, "com.apple.metadata:com_apple_backup_excludeItem", nil, 0, 0, XATTR_NOFOLLOW) >= 0
     }
 
+    /// Folders excluded in Time Machine settings (SkipPaths). Read once at launch; changes need a restart.
+    static let skipPaths: Set<String> = {
+        // Through cfprefsd: the plist file itself is TCC-protected without Full Disk Access.
+        let v = CFPreferencesCopyAppValue("SkipPaths" as CFString, "/Library/Preferences/com.apple.TimeMachine" as CFString)
+        return Set((v as? [String] ?? []).map { ($0 as NSString).expandingTildeInPath })
+    }()
+
     /// True if the folder itself or any folder above it is excluded.
     static func isExcludedWithAncestors(_ path: String) -> Bool {
         var p = path
         while p != "/" && !p.isEmpty {
-            if isExcluded(p) { return true }
+            if isExcluded(p) || skipPaths.contains(p) { return true }
             p = (p as NSString).deletingLastPathComponent
         }
         return false
@@ -60,6 +67,7 @@ final class DirState {
     var ctx: SafetyClassifier.Context
     /// Entries carrying their own Time Machine exclusion, and whether this folder is excluded (itself or via a parent).
     var backupExcluded: Set<String> = []
+    var settingsExcluded: Set<String> = []
     var folderExcluded = false
     var rows: [Row] = []
     /// Sum of every entry (hidden or filtered included): the denominator for percentages.
@@ -108,7 +116,8 @@ final class DirState {
             rows.append(Row(name: e.name, kind: e.kind, size: size, mtime: e.mtime, isPackage: e.isPackage,
                             isHidden: e.isHidden, safety: model.classifier.classify(name: e.name, flags: e.flags, isDirectory: e.kind == .directory, in: ctx),
                             flags: e.flags, node: n, calculating: calc, unknownSize: unknown,
-                            backup: backupExcluded.contains(e.name) ? .own : folderExcluded ? .inherited : .none))
+                            backup: backupExcluded.contains(e.name) ? .own : settingsExcluded.contains(e.name) ? .settings
+                                : folderExcluded ? .inherited : .none))
         }
         switch sort {
         case .size:
