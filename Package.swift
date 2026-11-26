@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "SpaceMaster",
-    platforms: [.macOS("27.0")],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "SpaceMaster", targets: ["SMApp"]),
         .executable(name: "sm-bench", targets: ["sm-bench"]),
