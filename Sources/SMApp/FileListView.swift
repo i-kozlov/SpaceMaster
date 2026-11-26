@@ -196,7 +196,7 @@ final class FileListView: NSView {
 
             // Time Machine mark: only rows excluded themselves; a listing inside an excluded folder is marked in its header.
             if (r.backup == .own || r.backup == .settings) && !state.folderExcluded,
-               let img = TimeMachine.image(size: 10, color: rowSecondary) {
+               let img = icons.symbol(TimeMachine.symbol, size: 10, color: rowSecondary) {
                 img.draw(in: NSRect(x: 9 + (12 - img.size.width) / 2, y: y + (rh - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }

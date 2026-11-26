@@ -514,11 +514,6 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         browserView.setShowsSafety(showSafety)
     }
 
-    @objc func setTimeMachineIcon(_ sender: NSMenuItem) {
-        UserDefaults.standard.set(sender.tag, forKey: "sm.tmIcon")
-        browserView.redrawAll()
-    }
-
     @objc func focusSearch(_ sender: Any?) {
         guard let f = searchField else { return }
         view.window?.makeFirstResponder(f)
@@ -840,7 +835,6 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         case #selector(goInto(_:)): return cursorRow?.isDirectory == true
         case #selector(toggleHidden(_:)): item.state = showHidden ? .on : .off; return true
         case #selector(toggleSafety(_:)): item.state = showSafety ? .on : .off; return true
-        case #selector(setTimeMachineIcon(_:)): item.state = TimeMachine.iconIndex == item.tag ? .on : .off; return true
         case #selector(sortBySize(_:)): item.state = sortKey == .size ? .on : .off; return true
         case #selector(sortByName(_:)): item.state = sortKey == .name ? .on : .off; return true
         case #selector(sortByDate(_:)): item.state = sortKey == .modified ? .on : .off; return true

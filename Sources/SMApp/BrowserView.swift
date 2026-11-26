@@ -51,7 +51,7 @@ final class ColumnHeaderView: NSView {
         CTLineDraw(l, ctx)
         if excluded {
             var x = 14 + min(titleW, max(10, right - 14 - markW)) + 10
-            if let img = TimeMachine.image(size: 11, color: .secondaryLabelColor) {
+            if let img = IconCache.shared.symbol(TimeMachine.symbol, size: 11, color: .secondaryLabelColor) {
                 img.draw(in: NSRect(x: x, y: (bounds.height - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
@@ -393,10 +393,6 @@ final class BrowserView: NSView {
 
     func setShowsSafety(_ on: Bool) {
         for l in [parentList, currentList, previewList] { l.showsSafety = on }
-    }
-
-    func redrawAll() {
-        for v in ([parentList, currentList, previewList] as [NSView]) + headers { v.needsDisplay = true }
     }
 
     override var acceptsFirstResponder: Bool { true }

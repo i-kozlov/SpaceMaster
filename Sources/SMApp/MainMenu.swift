@@ -53,16 +53,6 @@ enum MainMenu {
             m.addItem(.separator())
             add(m, "Show Hidden Files", #selector(BrowserViewController.toggleHidden(_:)), ".", [.command, .shift])
             add(m, "Show Safe/Protected", #selector(BrowserViewController.toggleSafety(_:)))
-            let icons = NSMenu()
-            for (tag, icon) in TimeMachine.icons.enumerated() {
-                let i = NSMenuItem(title: icon.title, action: #selector(BrowserViewController.setTimeMachineIcon(_:)), keyEquivalent: "")
-                i.tag = tag; i.target = browser
-                i.image = TimeMachine.image(size: 13, template: true, index: tag)
-                icons.addItem(i)
-            }
-            let iconItem = NSMenuItem(title: "Time Machine Icon", action: nil, keyEquivalent: "")
-            iconItem.submenu = icons
-            m.addItem(iconItem)
             m.addItem(.separator())
             add(m, "Toggle Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control], target: nil)
             add(m, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control], target: nil)

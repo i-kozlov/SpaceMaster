@@ -54,41 +54,7 @@ enum TimeMachine {
         return false
     }
 
-    /// Marks for excluded folders, chosen in View ▸ Time Machine Icon: symbol name, crossed out.
-    /// `slash`: width of the cross-out line relative to the size, 0 for none.
-    static let icons: [(title: String, symbol: String, slash: CGFloat, weight: NSFont.Weight)] = [
-        ("Clock with X", "clock.badge.xmark", 0, .semibold),
-        ("Clock with Arrow", "clock.arrow.circlepath", 0, .semibold),
-        ("Clock with Arrow, Crossed Out", "clock.arrow.circlepath", 0.13, .semibold),
-        ("Crossed Out, Thin Line", "clock.arrow.circlepath", 0.07, .semibold),
-        ("Crossed Out, Bold Clock", "clock.arrow.circlepath", 0.13, .bold),
-    ]
-    static var iconIndex: Int {
-        let i = UserDefaults.standard.integer(forKey: "sm.tmIcon")
-        return icons.indices.contains(i) ? i : 0
-    }
-
-    /// The chosen mark (or `index`), tinted with `color`; `template` for toolbar and menu images.
-    @MainActor static func image(size: CGFloat, color: NSColor = .black, template: Bool = false, index: Int = iconIndex) -> NSImage? {
-        let icon = icons[index]
-        guard let base = IconCache.shared.symbol(icon.symbol, size: size, color: color, weight: icon.weight) else { return nil }
-        guard icon.slash > 0 || template else { return base }
-        let img = NSImage(size: base.size, flipped: false) { rect in
-            base.draw(in: rect)
-            if icon.slash > 0 {
-                let p = NSBezierPath()
-                p.move(to: NSPoint(x: rect.minX + 1, y: rect.maxY - 1))
-                p.line(to: NSPoint(x: rect.maxX - 1, y: rect.minY + 1))
-                p.lineWidth = max(1, size * icon.slash)
-                p.lineCapStyle = .round
-                color.setStroke()
-                p.stroke()
-            }
-            return true
-        }
-        img.isTemplate = template
-        return img
-    }
+    static let symbol = "clock.badge.xmark"
 }
 
 /// One directory as displayed in a column: raw listing + sorted/filtered rows.
@@ -281,7 +247,7 @@ final class IconCache {
     }
 
     func symbol(_ name: String, size: CGFloat, color: NSColor, weight: NSFont.Weight = .semibold) -> NSImage? {
-        let key = "\(name)|\(size)|\(color.hashValue)|\(weight.rawValue)"
+        let key = "\(name)|\(size)|\(color.hashValue)"
         if let s = symbols[key] { return s }
         let cfg = NSImage.SymbolConfiguration(pointSize: size, weight: weight).applying(.init(paletteColors: [color]))
         let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(cfg)
