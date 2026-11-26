@@ -131,7 +131,6 @@ final class FileListView: NSView {
 
         let width = bounds.width
         let showPct = width >= 300
-        let showTM = width >= 380
         let badgeCompact = width < 400
         let pctReserve: CGFloat = showPct ? Self.pctWidth : 0
         let nameBase = text.baseline(for: text.nameFont, rowHeight: rh)
@@ -165,10 +164,30 @@ final class FileListView: NSView {
                 ctx.saveGState()
                 ctx.addPath(path); ctx.clip()
                 let a0: CGFloat = dark ? 0.92 : 0.60, a1: CGFloat = dark ? 0.42 : 0.28
-                if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                // Split bar: the part Time Machine backs up in full color, the excluded rest pale and hatched.
+                let tmFrac = CGFloat(Double(min(max(0, r.backupSize), r.size)) / Double(r.size))
+                let split = rect.minX + rect.width * tmFrac
+                if tmFrac > 0, let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                       colors: [base.withAlphaComponent(a0).cgColor, base.withAlphaComponent(a1).cgColor] as CFArray,
                                       locations: [0, 1]) {
+                    ctx.saveGState()
+                    ctx.clip(to: NSRect(x: rect.minX, y: rect.minY, width: split - rect.minX, height: rect.height))
                     ctx.drawLinearGradient(g, start: CGPoint(x: rect.minX, y: 0), end: CGPoint(x: rect.maxX, y: 0), options: [])
+                    ctx.restoreGState()
+                }
+                if tmFrac < 1 {
+                    let pale = NSRect(x: split, y: rect.minY, width: rect.maxX - split, height: rect.height)
+                    ctx.clip(to: pale)
+                    ctx.setFillColor(base.withAlphaComponent(a1 * 0.45).cgColor)
+                    ctx.fill(pale)
+                    ctx.setStrokeColor(base.withAlphaComponent(dark ? 0.55 : 0.40).cgColor)
+                    ctx.setLineWidth(1)
+                    var hx = pale.minX - pale.height
+                    while hx < pale.maxX {
+                        ctx.move(to: CGPoint(x: hx, y: pale.maxY)); ctx.addLine(to: CGPoint(x: hx + pale.height, y: pale.minY))
+                        hx += 5
+                    }
+                    ctx.strokePath()
                 }
                 ctx.restoreGState()
             }
@@ -211,15 +230,6 @@ final class FileListView: NSView {
             if r.isDirectory, let img = IconCache.shared.symbol("chevron.right", size: 9, color: rowTertiary, weight: .semibold) {
                 img.draw(in: NSRect(x: width - 12 - img.size.width - 2, y: y + (rh - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-            }
-            // Time Machine column: what of this size goes to the backup.
-            if showTM {
-                let s = r.unknownSize ? "—" : r.backup != .none ? "—" : ByteFormat.string(r.backupSize)
-                let (l, w) = text.line(s, .small, maxWidth: nil)
-                ctx.setFillColor(rowSecondary.cgColor)
-                ctx.textPosition = CGPoint(x: x - w, y: y + smallBase)
-                CTLineDraw(l, ctx)
-                x -= Self.sizeWidth + 6
             }
             if showPct {
                 if r.size > 0 && !r.unknownSize {
@@ -329,7 +339,9 @@ final class FileListView: NSView {
         let r = rows[i]
         // Tooltip text explains the badge when hovering the right part of the row.
         toolTip = p.x < 22 && (r.backup == .own || r.backup == .settings) && state?.folderExcluded == false ? "Excluded from Time Machine"
-            : showsSafety && p.x > bounds.width - 230 ? r.safety.reason : nil
+            : showsSafety && p.x > bounds.width - 230 ? r.safety.reason
+            : r.backupSize != r.size && !r.unknownSize
+                ? "\(ByteFormat.string(r.size)) · Time Machine \(ByteFormat.string(r.backupSize))" : nil
     }
 
     override func mouseDown(with event: NSEvent) {

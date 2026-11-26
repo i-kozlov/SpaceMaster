@@ -224,16 +224,22 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         updateStatus()
     }
 
+    /// Header size: the total, and what goes to Time Machine only when it differs.
+    private func sizes(_ s: DirState) -> String {
+        let total = ByteFormat.string(s.total) + (s.anyCalculating ? "+" : "")
+        return s.backupTotal == s.total ? total : total + " · Time Machine " + ByteFormat.string(s.backupTotal)
+    }
+
     private func updateHeaders() {
         let v = browserView
         let parentPath = (cwd as NSString).deletingLastPathComponent
         v.headers[0].title = cwd == "/" ? "" : (parentPath == "/" ? "Macintosh HD" : (parentPath as NSString).lastPathComponent)
-        v.headers[0].detail = parentState.map { ByteFormat.string($0.total) + " · TM " + ByteFormat.string($0.backupTotal) } ?? ""
+        v.headers[0].detail = parentState.map { sizes($0) } ?? ""
         v.headers[1].title = cwd == "/" ? "Macintosh HD" : (cwd as NSString).lastPathComponent
-        v.headers[1].detail = ByteFormat.string(current.total) + (current.anyCalculating ? "+" : "") + " · TM " + ByteFormat.string(current.backupTotal)
+        v.headers[1].detail = sizes(current)
         if let s = previewState {
             v.headers[2].title = (s.path as NSString).lastPathComponent
-            v.headers[2].detail = ByteFormat.string(s.total) + (s.anyCalculating ? "+" : "") + " · TM " + ByteFormat.string(s.backupTotal)
+            v.headers[2].detail = sizes(s)
         } else if let r = cursorRow {
             v.headers[2].title = r.name
             v.headers[2].detail = ByteFormat.string(r.size)
