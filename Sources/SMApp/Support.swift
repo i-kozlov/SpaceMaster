@@ -52,9 +52,38 @@ enum TimeMachine {
         return false
     }
 
-    static let symbols = ["clock.badge.xmark", "clock.arrow.circlepath"]
-    /// The mark for excluded folders, chosen in View ▸ Time Machine Icon.
-    static var symbol: String { symbols[UserDefaults.standard.integer(forKey: "sm.tmIcon") == 1 ? 1 : 0] }
+    /// Marks for excluded folders, chosen in View ▸ Time Machine Icon: symbol name, crossed out.
+    static let icons: [(title: String, symbol: String, slash: Bool)] = [
+        ("Clock with X", "clock.badge.xmark", false),
+        ("Clock with Arrow", "clock.arrow.circlepath", false),
+        ("Clock with Arrow, Crossed Out", "clock.arrow.circlepath", true),
+    ]
+    static var iconIndex: Int {
+        let i = UserDefaults.standard.integer(forKey: "sm.tmIcon")
+        return icons.indices.contains(i) ? i : 0
+    }
+
+    /// The chosen mark (or `index`), tinted with `color`; `template` for toolbar and menu images.
+    @MainActor static func image(size: CGFloat, color: NSColor = .black, template: Bool = false, index: Int = iconIndex) -> NSImage? {
+        let icon = icons[index]
+        guard let base = IconCache.shared.symbol(icon.symbol, size: size, color: color) else { return nil }
+        guard icon.slash || template else { return base }
+        let img = NSImage(size: base.size, flipped: false) { rect in
+            base.draw(in: rect)
+            if icon.slash {
+                let p = NSBezierPath()
+                p.move(to: NSPoint(x: rect.minX + 1, y: rect.maxY - 1))
+                p.line(to: NSPoint(x: rect.maxX - 1, y: rect.minY + 1))
+                p.lineWidth = max(1.2, size * 0.13)
+                p.lineCapStyle = .round
+                color.setStroke()
+                p.stroke()
+            }
+            return true
+        }
+        img.isTemplate = template
+        return img
+    }
 }
 
 /// One directory as displayed in a column: raw listing + sorted/filtered rows.

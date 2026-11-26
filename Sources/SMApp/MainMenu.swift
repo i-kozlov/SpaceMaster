@@ -54,13 +54,13 @@ enum MainMenu {
             add(m, "Show Hidden Files", #selector(BrowserViewController.toggleHidden(_:)), ".", [.command, .shift])
             add(m, "Show Safe/Protected", #selector(BrowserViewController.toggleSafety(_:)))
             let icons = NSMenu()
-            for (tag, title) in ["Часы с крестиком", "Часы со стрелкой"].enumerated() {
-                let i = NSMenuItem(title: title, action: #selector(BrowserViewController.setTimeMachineIcon(_:)), keyEquivalent: "")
+            for (tag, icon) in TimeMachine.icons.enumerated() {
+                let i = NSMenuItem(title: icon.title, action: #selector(BrowserViewController.setTimeMachineIcon(_:)), keyEquivalent: "")
                 i.tag = tag; i.target = browser
-                i.image = NSImage(systemSymbolName: TimeMachine.symbols[tag], accessibilityDescription: title)
+                i.image = TimeMachine.image(size: 13, template: true, index: tag)
                 icons.addItem(i)
             }
-            let iconItem = NSMenuItem(title: "Значок Time Machine", action: nil, keyEquivalent: "")
+            let iconItem = NSMenuItem(title: "Time Machine Icon", action: nil, keyEquivalent: "")
             iconItem.submenu = icons
             m.addItem(iconItem)
             m.addItem(.separator())

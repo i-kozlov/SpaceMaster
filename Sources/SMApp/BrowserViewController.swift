@@ -658,7 +658,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         if !failed.isEmpty, let w = view.window {
             let a = NSAlert()
             a.alertStyle = .warning
-            a.messageText = "Не удалось изменить исключение Time Machine"
+            a.messageText = "Couldn't change the Time Machine exclusion"
             a.informativeText = failed.prefix(4).joined(separator: "\n")
             a.beginSheetModal(for: w, completionHandler: nil)
         }
@@ -808,7 +808,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         add("Copy Path", #selector(copyPath(_:)))
         m.addItem(.separator())
         add("Rescan", #selector(rescan(_:)))
-        add("Исключить из Time Machine", #selector(toggleBackupExclusion(_:)))
+        add("Exclude from Time Machine", #selector(toggleBackupExclusion(_:)))
         m.addItem(.separator())
         add("Move to Trash", #selector(trashSelection(_:)))
         add("Delete Immediately…", #selector(deleteSelection(_:)))
@@ -822,15 +822,15 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         case #selector(toggleBackupExclusion(_:)):
             let rows = targets()
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .own }) {
-                item.title = "Вернуть в Time Machine"; return true
+                item.title = "Remove Time Machine Exclusion"; return true
             }
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .settings }) {
-                item.title = "Исключено в настройках Time Machine"; return false
+                item.title = "Excluded in Time Machine Settings"; return false
             }
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .inherited }) {
-                item.title = "Исключено через папку выше"; return false
+                item.title = "Excluded by a Parent Folder"; return false
             }
-            item.title = "Исключить из Time Machine"; return !rows.isEmpty
+            item.title = "Exclude from Time Machine"; return !rows.isEmpty
         case #selector(undoTrash(_:)): return !undoStack.isEmpty
         case #selector(goBackAction(_:)): return canGoBack
         case #selector(goForwardAction(_:)): return canGoForward
@@ -838,7 +838,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         case #selector(goInto(_:)): return cursorRow?.isDirectory == true
         case #selector(toggleHidden(_:)): item.state = showHidden ? .on : .off; return true
         case #selector(toggleSafety(_:)): item.state = showSafety ? .on : .off; return true
-        case #selector(setTimeMachineIcon(_:)): item.state = TimeMachine.symbol == TimeMachine.symbols[item.tag] ? .on : .off; return true
+        case #selector(setTimeMachineIcon(_:)): item.state = TimeMachine.iconIndex == item.tag ? .on : .off; return true
         case #selector(sortBySize(_:)): item.state = sortKey == .size ? .on : .off; return true
         case #selector(sortByName(_:)): item.state = sortKey == .name ? .on : .off; return true
         case #selector(sortByDate(_:)): item.state = sortKey == .modified ? .on : .off; return true

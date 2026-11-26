@@ -37,7 +37,7 @@ final class ColumnHeaderView: NSView {
         var markW: CGFloat = 0
         var markLine: CTLine?
         if excluded {
-            let ml = CTLineCreateWithAttributedString(NSAttributedString(string: "Исключено из Time Machine",
+            let ml = CTLineCreateWithAttributedString(NSAttributedString(string: "Excluded from Time Machine",
                                                                          attributes: [.font: text.smallFont, fromContext: true]))
             let mw = CGFloat(CTLineGetTypographicBounds(ml, nil, nil, nil))
             if titleW + 10 + 14 + 4 + mw <= right - 14 { markLine = ml; markW = 10 + 14 + 4 + mw } else { markW = 10 + 14 }
@@ -51,7 +51,7 @@ final class ColumnHeaderView: NSView {
         CTLineDraw(l, ctx)
         if excluded {
             var x = 14 + min(titleW, max(10, right - 14 - markW)) + 10
-            if let img = IconCache.shared.symbol(TimeMachine.symbol, size: 11, color: .secondaryLabelColor) {
+            if let img = TimeMachine.image(size: 11, color: .secondaryLabelColor) {
                 img.draw(in: NSRect(x: x, y: (bounds.height - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
