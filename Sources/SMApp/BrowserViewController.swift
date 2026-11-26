@@ -86,6 +86,8 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         do { s.entries = try DirListing.list(path) } catch let e as DirEnumerator.Failure {
             s.error = e.code == EPERM || e.code == EACCES ? "No permission to read this folder.\nGrant Full Disk Access in System Settings." : e.description
         } catch { s.error = error.localizedDescription }
+        s.folderExcluded = TimeMachine.isExcludedWithAncestors(path)
+        s.backupExcluded = Set(s.entries.lazy.map(\.name).filter { TimeMachine.isExcluded(path == "/" ? "/" + $0 : path + "/" + $0) })
         s.rebuild(model: model, sort: sortKey, reversed: sortReversed, showHidden: showHidden, filter: path == cwd ? filter : "")
         states[path] = s
         stateOrder.removeAll { $0 == path }
@@ -622,6 +624,30 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         alert.beginSheetModal(for: window)
     }
 
+    // MARK: Time Machine
+
+    /// Excludes the targets from Time Machine, or removes their own exclusion if they all have one.
+    @objc func toggleBackupExclusion(_ sender: Any?) {
+        let rows = targets()
+        guard !rows.isEmpty else { return }
+        let exclude = !rows.allSatisfy { $0.backup == .own }
+        var failed: [String] = []
+        for r in rows {
+            var url = URL(fileURLWithPath: path(of: r))
+            var v = URLResourceValues()
+            v.isExcludedFromBackup = exclude
+            do { try url.setResourceValues(v) } catch { failed.append("\(r.name): \(error.localizedDescription)") }
+        }
+        afterMutation(dirPath: cwd)
+        if !failed.isEmpty, let w = view.window {
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = "Couldn't change the Time Machine exclusion"
+            a.informativeText = failed.prefix(4).joined(separator: "\n")
+            a.beginSheetModal(for: w, completionHandler: nil)
+        }
+    }
+
     // MARK: Delete
 
     @objc func trashSelection(_ sender: Any?) { performDelete(permanently: false) }
@@ -654,7 +680,15 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
                 self?.focus()
             }
         } else {
-            runDelete(rows, permanently: false)
+            let a = NSAlert()
+            a.messageText = "Move \(what) to Trash?"
+            a.informativeText = "\(ByteFormat.string(bytes)). You can undo this with ⌘Z."
+            a.addButton(withTitle: "Move to Trash")
+            a.addButton(withTitle: "Cancel")
+            a.beginSheetModal(for: window) { [weak self] r in
+                if r == .alertFirstButtonReturn { self?.runDelete(rows, permanently: false) }
+                self?.focus()
+            }
         }
     }
 
@@ -766,6 +800,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         add("Copy Path", #selector(copyPath(_:)))
         m.addItem(.separator())
         add("Rescan", #selector(rescan(_:)))
+        add("Exclude from Time Machine", #selector(toggleBackupExclusion(_:)))
         m.addItem(.separator())
         add("Move to Trash", #selector(trashSelection(_:)))
         add("Delete Immediately…", #selector(deleteSelection(_:)))
@@ -776,6 +811,15 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         switch item.action {
         case #selector(trashSelection(_:)), #selector(deleteSelection(_:)):
             return !targets().isEmpty && deleting == 0
+        case #selector(toggleBackupExclusion(_:)):
+            let rows = targets()
+            if !rows.isEmpty && rows.allSatisfy({ $0.backup == .own }) {
+                item.title = "Remove Time Machine Exclusion"; return true
+            }
+            if !rows.isEmpty && rows.allSatisfy({ $0.backup == .inherited }) {
+                item.title = "Excluded from Time Machine by a Parent Folder"; return false
+            }
+            item.title = "Exclude from Time Machine"; return !rows.isEmpty
         case #selector(undoTrash(_:)): return !undoStack.isEmpty
         case #selector(goBackAction(_:)): return canGoBack
         case #selector(goForwardAction(_:)): return canGoForward

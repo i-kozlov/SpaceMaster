@@ -222,10 +222,22 @@ final class FileListView: NSView {
             if r.calculating { drawSpinner(ctx, center: CGPoint(x: x - sw - 9, y: y + rh / 2)) }
             x -= Self.sizeWidth + (r.calculating ? 10 : 0)
 
-            // Badge
-            let badgeW = drawBadge(ctx, r.safety, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
-                                   baseline: badgeBase, text: text)
-            x -= badgeW + 8
+            // Badges
+            let safety: (NSColor, String, String)
+            switch r.safety.level {
+            case .safe: safety = (.systemGreen, "Safe", "checkmark")
+            case .protected: safety = (.systemRed, "Protected", "lock.fill")
+            case .mixed: safety = (.systemOrange, "Has safe items", "lock.open.fill")
+            }
+            x -= drawBadge(ctx, safety, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
+                           baseline: badgeBase, text: text) + 8
+            if r.backup != .none {
+                let tm: (NSColor, String, String) = r.backup == .own
+                    ? (.systemPurple, "No backup", "clock.badge.xmark")
+                    : (.systemGray, "No backup", "clock.badge.xmark")
+                x -= drawBadge(ctx, tm, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
+                               baseline: badgeBase, text: text) + 6
+            }
 
             // Name
             let nameColor: NSColor = r.isHidden && !onAccent ? secondary : r.kind == .symlink && !onAccent ? .systemTeal : rowPrimary
@@ -239,14 +251,9 @@ final class FileListView: NSView {
     }
 
     /// Returns the width used.
-    private func drawBadge(_ ctx: CGContext, _ safety: Safety, rightEdge: CGFloat, y: CGFloat, rowHeight rh: CGFloat,
+    private func drawBadge(_ ctx: CGContext, _ badge: (NSColor, String, String), rightEdge: CGFloat, y: CGFloat, rowHeight rh: CGFloat,
                            compact: Bool, baseline: CGFloat, text: TextCache) -> CGFloat {
-        let color: NSColor, label: String, symbol: String
-        switch safety.level {
-        case .safe: (color, label, symbol) = (.systemGreen, "Safe", "checkmark")
-        case .protected: (color, label, symbol) = (.systemRed, "Protected", "lock.fill")
-        case .mixed: (color, label, symbol) = (.systemOrange, "Has safe items", "lock.open.fill")
-        }
+        let (color, label, symbol) = badge
         let h: CGFloat = 17
         let (l, lw) = text.line(label, .badge, maxWidth: nil)
         let w: CGFloat = compact ? h + 2 : 8 + 11 + 4 + lw + 8
@@ -309,7 +316,9 @@ final class FileListView: NSView {
         let p = convert(event.locationInWindow, from: nil)
         let r = rows[i]
         // Tooltip text explains the badge when hovering the right part of the row.
-        toolTip = p.x > bounds.width - 230 ? r.safety.reason : nil
+        let tm = r.backup == .own ? "\nExcluded from Time Machine."
+            : r.backup == .inherited ? "\nExcluded from Time Machine by a parent folder." : ""
+        toolTip = p.x > bounds.width - 330 ? r.safety.reason + tm : nil
     }
 
     override func mouseDown(with event: NSEvent) {
