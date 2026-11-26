@@ -13,6 +13,8 @@ public final class SizeScanner: @unchecked Sendable {
         var node: Node
         var path: String
         var dev: Int32
+        /// The directory is excluded from Time Machine (itself or through an ancestor).
+        var excluded: Bool
     }
 
     public let root = Node(name: "", parent: nil)
@@ -31,7 +33,25 @@ public final class SizeScanner: @unchecked Sendable {
 
     public var isScanning: Bool { pending.load(ordering: .relaxed) > 0 }
 
-    public init(threads: Int = max(4, ProcessInfo.processInfo.activeProcessorCount)) {
+    /// Folders excluded in Time Machine settings (SkipPaths); folders with the exclusion attribute are found while scanning.
+    let skipPaths: Set<String>
+
+    /// True if Time Machine skips this directory by its own exclusion (attribute or settings), ignoring ancestors.
+    public func isExcludedDir(_ path: String) -> Bool {
+        skipPaths.contains(path) || getxattr(path, "com.apple.metadata:com_apple_backup_excludeItem", nil, 0, 0, XATTR_NOFOLLOW) >= 0
+    }
+
+    private func isExcludedWithAncestors(_ path: String) -> Bool {
+        var p = path
+        while p != "/" && !p.isEmpty {
+            if isExcludedDir(p) { return true }
+            p = (p as NSString).deletingLastPathComponent
+        }
+        return false
+    }
+
+    public init(threads: Int = max(4, ProcessInfo.processInfo.activeProcessorCount), skipPaths: Set<String> = []) {
+        self.skipPaths = skipPaths
         root.stateRaw.store(Node.State.unlisted.rawValue, ordering: .relaxed)
         for i in 0..<threads {
             let t = Thread { [weak self] in self?.workerLoop() }
@@ -80,7 +100,7 @@ public final class SizeScanner: @unchecked Sendable {
             return true
         }
         guard accept else { return }
-        push([Job(node: node, path: path, dev: dev)])
+        push([Job(node: node, path: path, dev: dev, excluded: isExcludedWithAncestors(path))])
     }
 
     /// Marks a node as an independent scan root (mounted volume): its bytes stay out of the ancestors.
@@ -93,7 +113,7 @@ public final class SizeScanner: @unchecked Sendable {
         let accept: Bool = treeLock.withLockUnchecked {
             guard node.state == .done || node.state == .unlisted else { return false }
             if node.state == .done {
-                Self.propagate(from: node, bytes: -node.totalBytes, items: -node.itemCount)
+                Self.propagate(from: node, bytes: -node.totalBytes, items: -node.itemCount, excluded: -node.excludedBytes)
             }
             node.children = []
             node.remaining = 0
@@ -107,7 +127,7 @@ public final class SizeScanner: @unchecked Sendable {
 
     /// Bookkeeping after files in `dir` were deleted.
     public func didRemoveFiles(bytes: Int64, items: Int64, from dir: Node) {
-        treeLock.withLockUnchecked { Self.propagate(from: dir, bytes: -bytes, items: -items) }
+        treeLock.withLockUnchecked { Self.propagate(from: dir, bytes: -bytes, items: -items, excluded: dir.isExcluded ? -bytes : 0) }
         version.wrappingAdd(1, ordering: .relaxed)
     }
 
@@ -116,7 +136,9 @@ public final class SizeScanner: @unchecked Sendable {
         treeLock.withLockUnchecked {
             guard let parent = child.parent else { return }
             parent.children.removeAll { $0 === child }
-            if !child.isMountRoot { Self.propagate(from: parent, bytes: -child.totalBytes, items: -child.itemCount) }
+            if !child.isMountRoot {
+                Self.propagate(from: parent, bytes: -child.totalBytes, items: -child.itemCount, excluded: -child.excludedBytes)
+            }
         }
         version.wrappingAdd(1, ordering: .relaxed)
     }
@@ -148,6 +170,7 @@ public final class SizeScanner: @unchecked Sendable {
         var name: String
         var dev: Int32
         var skip: SkipKind
+        var excluded: Bool
     }
     private static func isMountName(_ n: UnsafeBufferPointer<UInt8>, root: Bool) -> Bool {
         let name = String(decoding: n, as: UTF8.self)
@@ -171,7 +194,9 @@ public final class SizeScanner: @unchecked Sendable {
                     if isRoot || isSystem, Self.isMountName(e.name, root: isRoot) { skip = .mount }
                     else if e.flags & FSFlags.dataless != 0 { skip = .dataless }
                     else if e.dev != job.dev && !isRoot { skip = .mount }
-                    subs.append(Sub(name: String(decoding: e.name, as: UTF8.self), dev: e.dev, skip: skip))
+                    let name = String(decoding: e.name, as: UTF8.self)
+                    let excluded = job.excluded || (skip == .none && isExcludedDir((isRoot ? "" : job.path) + "/" + name))
+                    subs.append(Sub(name: name, dev: e.dev, skip: skip, excluded: excluded))
                 } else {
                     fileBytes &+= e.alloc
                     fileCount += 1
@@ -206,7 +231,7 @@ public final class SizeScanner: @unchecked Sendable {
                     case .unlisted:
                         c.stateRaw.store(Node.State.queued.rawValue, ordering: .relaxed)
                         if childPath == nil { childPath = job.path == "/" ? "" : job.path }
-                        spawn.append(Job(node: c, path: childPath! + "/" + s.name, dev: s.dev))
+                        spawn.append(Job(node: c, path: childPath! + "/" + s.name, dev: s.dev, excluded: s.excluded))
                         remaining += 1
                     case .queued, .listed:
                         remaining += 1
@@ -216,6 +241,7 @@ public final class SizeScanner: @unchecked Sendable {
                 }
             }
             node.unreadable = failed
+            node.isExcluded = job.excluded
             node.remaining = remaining
             node.stateRaw.store(Node.State.listed.rawValue, ordering: .releasing)
         }
@@ -223,7 +249,7 @@ public final class SizeScanner: @unchecked Sendable {
         let items = Int64(fileCount + subs.count)
         if fileBytes != 0 || items != 0 {
             // Lock-free: atomic adds up the ancestor chain (stops at mount roots).
-            Self.propagate(from: node, bytes: fileBytes, items: items)
+            Self.propagate(from: node, bytes: fileBytes, items: items, excluded: job.excluded ? fileBytes : 0)
         }
         dirsScanned.wrappingAdd(1, ordering: .relaxed)
         itemsScanned.wrappingAdd(Int(items), ordering: .relaxed)
@@ -238,10 +264,11 @@ public final class SizeScanner: @unchecked Sendable {
     }
 
     /// Adds to the node and every ancestor, stopping after a mount root. Atomics only; safe with or without the lock.
-    private static func propagate(from node: Node, bytes: Int64, items: Int64) {
+    private static func propagate(from node: Node, bytes: Int64, items: Int64, excluded: Int64 = 0) {
         var n: Node? = node
         while let x = n {
             if bytes != 0 { x.total.wrappingAdd(bytes, ordering: .relaxed) }
+            if excluded != 0 { x.excluded.wrappingAdd(excluded, ordering: .relaxed) }
             if items != 0 { x.items.wrappingAdd(items, ordering: .relaxed) }
             if x.isMountRoot { break }
             n = x.parent

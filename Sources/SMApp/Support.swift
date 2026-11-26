@@ -24,6 +24,8 @@ struct Row {
     /// Directory that was never scanned (mount point, cloud placeholder) — size unknown.
     var unknownSize: Bool
     var backup: BackupExclusion = .none
+    /// Bytes Time Machine would back up: 0 for an excluded row, the size minus excluded sub-folders otherwise.
+    var backupSize: Int64 = 0
     var isDirectory: Bool { kind == .directory }
 }
 
@@ -101,6 +103,8 @@ final class DirState {
     var rows: [Row] = []
     /// Sum of every entry (hidden or filtered included): the denominator for percentages.
     var total: Int64 = 0
+    /// Part of `total` that goes to Time Machine.
+    var backupTotal: Int64 = 0
     var maxSize: Int64 = 1
     var anyCalculating = false
     var loadedAt = Date()
@@ -120,6 +124,7 @@ final class DirState {
         var rows: [Row] = []
         rows.reserveCapacity(entries.count)
         var total: Int64 = 0
+        var backupTotal: Int64 = 0
         var calculating = false
         let needle = filter.lowercased()
         for e in entries {
@@ -139,14 +144,17 @@ final class DirState {
                 } else { unknown = true; size = 0 }
             }
             total += size
+            let backup: BackupExclusion = backupExcluded.contains(e.name) ? .own : settingsExcluded.contains(e.name) ? .settings
+                : folderExcluded ? .inherited : .none
+            let backupSize = backup != .none ? 0 : size - (n?.excludedBytes ?? 0)
+            backupTotal += backupSize
             if calc { calculating = true }
             if !showHidden && e.isHidden { continue }
             if !needle.isEmpty && !e.name.lowercased().contains(needle) { continue }
             rows.append(Row(name: e.name, kind: e.kind, size: size, mtime: e.mtime, isPackage: e.isPackage,
                             isHidden: e.isHidden, safety: model.classifier.classify(name: e.name, flags: e.flags, isDirectory: e.kind == .directory, in: ctx),
                             flags: e.flags, node: n, calculating: calc, unknownSize: unknown,
-                            backup: backupExcluded.contains(e.name) ? .own : settingsExcluded.contains(e.name) ? .settings
-                                : folderExcluded ? .inherited : .none))
+                            backup: backup, backupSize: backupSize))
         }
         switch sort {
         case .size:
@@ -160,6 +168,7 @@ final class DirState {
         if reversed { rows.reverse() }
         self.rows = rows
         self.total = total
+        self.backupTotal = backupTotal
         self.maxSize = max(1, rows.map(\.size).max() ?? 1)
         self.anyCalculating = calculating
     }

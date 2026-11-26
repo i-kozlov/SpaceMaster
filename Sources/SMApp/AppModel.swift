@@ -6,7 +6,7 @@ import SMCore
 final class AppModel {
     static let shared = AppModel()
 
-    let scanner = SizeScanner()
+    let scanner = SizeScanner(skipPaths: TimeMachine.skipPaths)
     let classifier = SafetyClassifier()
     let home = NSHomeDirectory()
     private(set) var volumes: [VolumeInfo] = Volumes.list()

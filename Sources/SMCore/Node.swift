@@ -16,6 +16,8 @@ public final class Node: @unchecked Sendable {
 
     /// Bytes of everything scanned so far in this subtree. Live while scanning, final once `isDone`.
     public let total = Atomic<Int64>(0)
+    /// Bytes of this subtree that Time Machine skips (in excluded folders).
+    public let excluded = Atomic<Int64>(0)
     /// Number of files + directories scanned so far in this subtree.
     public let items = Atomic<Int64>(0)
     let stateRaw = Atomic<UInt8>(0)
@@ -29,6 +31,8 @@ public final class Node: @unchecked Sendable {
     var silent = false
     /// Directory could not be read (permissions).
     var unreadable = false
+    /// Excluded from Time Machine, itself or through an ancestor.
+    var isExcluded = false
 
     init(name: String, parent: Node?) {
         self.name = name
@@ -39,6 +43,7 @@ public final class Node: @unchecked Sendable {
     public var isDone: Bool { state == .done }
     public var totalBytes: Int64 { total.load(ordering: .relaxed) }
     public var itemCount: Int64 { items.load(ordering: .relaxed) }
+    public var excludedBytes: Int64 { excluded.load(ordering: .relaxed) }
 
     /// Absolute path of this node.
     public var path: String {

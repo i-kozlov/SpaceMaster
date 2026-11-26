@@ -131,6 +131,7 @@ final class FileListView: NSView {
 
         let width = bounds.width
         let showPct = width >= 300
+        let showTM = width >= 380
         let badgeCompact = width < 400
         let pctReserve: CGFloat = showPct ? Self.pctWidth : 0
         let nameBase = text.baseline(for: text.nameFont, rowHeight: rh)
@@ -210,6 +211,15 @@ final class FileListView: NSView {
             if r.isDirectory, let img = IconCache.shared.symbol("chevron.right", size: 9, color: rowTertiary, weight: .semibold) {
                 img.draw(in: NSRect(x: width - 12 - img.size.width - 2, y: y + (rh - img.size.height) / 2, width: img.size.width, height: img.size.height),
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+            // Time Machine column: what of this size goes to the backup.
+            if showTM {
+                let s = r.unknownSize ? "—" : r.backup != .none ? "—" : ByteFormat.string(r.backupSize)
+                let (l, w) = text.line(s, .small, maxWidth: nil)
+                ctx.setFillColor(rowSecondary.cgColor)
+                ctx.textPosition = CGPoint(x: x - w, y: y + smallBase)
+                CTLineDraw(l, ctx)
+                x -= Self.sizeWidth + 6
             }
             if showPct {
                 if r.size > 0 && !r.unknownSize {

@@ -37,6 +37,37 @@ import Testing
     #expect(node.totalBytes == before - kids[1].totalBytes)
 }
 
+@Test func scannerCountsTimeMachineExcludedBytes() throws {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("sm-test-\(UUID().uuidString)")
+    try fm.createDirectory(at: root.appendingPathComponent("attr/sub"), withIntermediateDirectories: true)
+    try fm.createDirectory(at: root.appendingPathComponent("settings"), withIntermediateDirectories: true)
+    try fm.createDirectory(at: root.appendingPathComponent("kept"), withIntermediateDirectories: true)
+    try Data(repeating: 1, count: 300_000).write(to: root.appendingPathComponent("attr/sub/a.bin"))
+    try Data(repeating: 1, count: 200_000).write(to: root.appendingPathComponent("settings/b.bin"))
+    try Data(repeating: 1, count: 100_000).write(to: root.appendingPathComponent("kept/c.bin"))
+    defer { try? fm.removeItem(at: root) }
+    let path = root.resolvingSymlinksInPath().path
+    var attr = URL(fileURLWithPath: path + "/attr")
+    var v = URLResourceValues(); v.isExcludedFromBackup = true
+    try attr.setResourceValues(v)
+
+    let scanner = SizeScanner(threads: 4, skipPaths: [path + "/settings"])
+    let node = scanner.node(forPath: path)
+    scanner.scan(node)
+    let deadline = Date().addingTimeInterval(10)
+    while !node.isDone && Date() < deadline { usleep(2000) }
+    #expect(node.isDone)
+    let kids = Dictionary(uniqueKeysWithValues: scanner.children(of: node).map { ($0.name, $0) })
+    #expect(kids["attr"]!.excludedBytes == kids["attr"]!.totalBytes)
+    #expect(kids["settings"]!.excludedBytes == kids["settings"]!.totalBytes)
+    #expect(kids["kept"]!.excludedBytes == 0)
+    #expect(node.excludedBytes == kids["attr"]!.totalBytes + kids["settings"]!.totalBytes)
+    // Deleting an excluded folder takes its bytes out of the excluded sum too.
+    scanner.didRemoveDirectory(kids["attr"]!)
+    #expect(node.excludedBytes == kids["settings"]!.totalBytes)
+}
+
 @Test func safetyRules() {
     let c = SafetyClassifier(home: "/Users/test")
     #expect(c.classify(path: "/System/Library/CoreServices", flags: 0).level == .protected)

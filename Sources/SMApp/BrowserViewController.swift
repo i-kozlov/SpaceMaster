@@ -228,12 +228,12 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         let v = browserView
         let parentPath = (cwd as NSString).deletingLastPathComponent
         v.headers[0].title = cwd == "/" ? "" : (parentPath == "/" ? "Macintosh HD" : (parentPath as NSString).lastPathComponent)
-        v.headers[0].detail = parentState.map { ByteFormat.string($0.total) } ?? ""
+        v.headers[0].detail = parentState.map { ByteFormat.string($0.total) + " · TM " + ByteFormat.string($0.backupTotal) } ?? ""
         v.headers[1].title = cwd == "/" ? "Macintosh HD" : (cwd as NSString).lastPathComponent
-        v.headers[1].detail = ByteFormat.string(current.total) + (current.anyCalculating ? "+" : "")
+        v.headers[1].detail = ByteFormat.string(current.total) + (current.anyCalculating ? "+" : "") + " · TM " + ByteFormat.string(current.backupTotal)
         if let s = previewState {
             v.headers[2].title = (s.path as NSString).lastPathComponent
-            v.headers[2].detail = ByteFormat.string(s.total) + (s.anyCalculating ? "+" : "")
+            v.headers[2].detail = ByteFormat.string(s.total) + (s.anyCalculating ? "+" : "") + " · TM " + ByteFormat.string(s.backupTotal)
         } else if let r = cursorRow {
             v.headers[2].title = r.name
             v.headers[2].detail = ByteFormat.string(r.size)
@@ -653,6 +653,8 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
             var v = URLResourceValues()
             v.isExcludedFromBackup = exclude
             do { try url.setResourceValues(v) } catch { failed.append("\(r.name): \(error.localizedDescription)") }
+            // Recount the folder so the Time Machine sizes follow the change.
+            if r.isDirectory, let n = r.node, n.isDone || n.state == .unlisted { model.scanner.rescan(n) }
         }
         afterMutation(dirPath: cwd)
         if !failed.isEmpty, let w = view.window {
