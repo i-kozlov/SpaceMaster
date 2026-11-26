@@ -9,6 +9,8 @@ final class ColumnHeaderView: NSView {
     var title = "" { didSet { needsDisplay = true } }
     var detail = "" { didSet { needsDisplay = true } }
     var emphasized = true { didSet { needsDisplay = true } }
+    /// The listed folder is excluded from Time Machine (itself or through a folder above).
+    var excluded = false { didSet { if excluded != oldValue { needsDisplay = true } } }
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -30,13 +32,36 @@ final class ColumnHeaderView: NSView {
             right -= w + 10
         }
         var l = CTLineCreateWithAttributedString(NSAttributedString(string: title, attributes: attrs))
-        if CTLineGetTypographicBounds(l, nil, nil, nil) > Double(right - 14) {
+        let titleW = CGFloat(CTLineGetTypographicBounds(l, nil, nil, nil))
+        // Time Machine mark after the title: icon + label, or the icon alone when the column is narrow.
+        var markW: CGFloat = 0
+        var markLine: CTLine?
+        if excluded {
+            let ml = CTLineCreateWithAttributedString(NSAttributedString(string: "Исключено из Time Machine",
+                                                                         attributes: [.font: text.smallFont, fromContext: true]))
+            let mw = CGFloat(CTLineGetTypographicBounds(ml, nil, nil, nil))
+            if titleW + 10 + 14 + 4 + mw <= right - 14 { markLine = ml; markW = 10 + 14 + 4 + mw } else { markW = 10 + 14 }
+        }
+        if titleW > right - 14 - markW {
             let tok = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attrs))
-            l = CTLineCreateTruncatedLine(l, Double(max(10, right - 14)), .middle, tok) ?? l
+            l = CTLineCreateTruncatedLine(l, Double(max(10, right - 14 - markW)), .middle, tok) ?? l
         }
         ctx.setFillColor((emphasized ? NSColor.labelColor : NSColor.secondaryLabelColor).cgColor)
         ctx.textPosition = CGPoint(x: 14, y: base)
         CTLineDraw(l, ctx)
+        if excluded {
+            var x = 14 + min(titleW, max(10, right - 14 - markW)) + 10
+            if let img = IconCache.shared.symbol(TimeMachine.symbol, size: 11, color: .secondaryLabelColor) {
+                img.draw(in: NSRect(x: x, y: (bounds.height - img.size.height) / 2, width: img.size.width, height: img.size.height),
+                         from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+            x += 14 + 4
+            if let markLine {
+                ctx.setFillColor(NSColor.secondaryLabelColor.cgColor)
+                ctx.textPosition = CGPoint(x: x, y: base)
+                CTLineDraw(markLine, ctx)
+            }
+        }
         NSColor.separatorColor.withAlphaComponent(0.5).setFill()
         NSRect(x: 0, y: bounds.height - 0.5, width: bounds.width, height: 0.5).fill()
     }
@@ -365,6 +390,14 @@ final class BrowserView: NSView {
         headers[2].emphasized = false
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func setShowsSafety(_ on: Bool) {
+        for l in [parentList, currentList, previewList] { l.showsSafety = on }
+    }
+
+    func redrawAll() {
+        for v in ([parentList, currentList, previewList] as [NSView]) + headers { v.needsDisplay = true }
+    }
 
     override var acceptsFirstResponder: Bool { true }
     override var isOpaque: Bool { true }

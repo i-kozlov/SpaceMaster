@@ -15,6 +15,7 @@ final class FileListView: NSView {
 
     var isActive = true { didSet { if isActive != oldValue { needsDisplay = true } } }
     var showsCursor = true { didSet { if showsCursor != oldValue { needsDisplay = true } } }
+    var showsSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? true { didSet { needsDisplay = true } }
     var spinnerPhase: Double = 0
 
     var onClick: ((Int, NSEvent.ModifierFlags) -> Void)?
@@ -192,8 +193,15 @@ final class FileListView: NSView {
             let rowSecondary = onAccent ? NSColor.white.withAlphaComponent(0.8) : secondary
             let rowTertiary = onAccent ? NSColor.white.withAlphaComponent(0.65) : tertiary
 
+            // Time Machine mark: only rows excluded themselves; a listing inside an excluded folder is marked in its header.
+            if r.backup == .own && !state.folderExcluded,
+               let img = icons.symbol(TimeMachine.symbol, size: 10, color: rowSecondary) {
+                img.draw(in: NSRect(x: 9 + (12 - img.size.width) / 2, y: y + (rh - img.size.height) / 2, width: img.size.width, height: img.size.height),
+                         from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+
             // Icon
-            icons.icon(for: r, dir: state.path).draw(in: NSRect(x: 14, y: y + (rh - 16) / 2, width: 16, height: 16),
+            icons.icon(for: r, dir: state.path).draw(in: NSRect(x: 26, y: y + (rh - 16) / 2, width: 16, height: 16),
                                                      from: .zero, operation: .sourceOver, fraction: r.isHidden ? 0.6 : 1,
                                                      respectFlipped: true, hints: nil)
 
@@ -222,28 +230,17 @@ final class FileListView: NSView {
             if r.calculating { drawSpinner(ctx, center: CGPoint(x: x - sw - 9, y: y + rh / 2)) }
             x -= Self.sizeWidth + (r.calculating ? 10 : 0)
 
-            // Badges
-            let safety: (NSColor, String, String)
-            switch r.safety.level {
-            case .safe: safety = (.systemGreen, "Safe", "checkmark")
-            case .protected: safety = (.systemRed, "Protected", "lock.fill")
-            case .mixed: safety = (.systemOrange, "Has safe items", "lock.open.fill")
-            }
-            x -= drawBadge(ctx, safety, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
-                           baseline: badgeBase, text: text) + 8
-            if r.backup != .none {
-                let tm: (NSColor, String, String) = r.backup == .own
-                    ? (.systemPurple, "No backup", "clock.badge.xmark")
-                    : (.systemGray, "No backup", "clock.badge.xmark")
-                x -= drawBadge(ctx, tm, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
-                               baseline: badgeBase, text: text) + 6
+            // Badge
+            if showsSafety {
+                x -= drawBadge(ctx, r.safety, rightEdge: x, y: y, rowHeight: rh, compact: badgeCompact,
+                               baseline: badgeBase, text: text) + 8
             }
 
             // Name
             let nameColor: NSColor = r.isHidden && !onAccent ? secondary : r.kind == .symlink && !onAccent ? .systemTeal : rowPrimary
             ctx.setFillColor(nameColor.cgColor)
-            let (nl, _) = text.line(r.name, .name, maxWidth: max(30, x - 38))
-            ctx.textPosition = CGPoint(x: 38, y: y + nameBase)
+            let (nl, _) = text.line(r.name, .name, maxWidth: max(30, x - 50))
+            ctx.textPosition = CGPoint(x: 50, y: y + nameBase)
             CTLineDraw(nl, ctx)
         }
 
@@ -251,9 +248,14 @@ final class FileListView: NSView {
     }
 
     /// Returns the width used.
-    private func drawBadge(_ ctx: CGContext, _ badge: (NSColor, String, String), rightEdge: CGFloat, y: CGFloat, rowHeight rh: CGFloat,
+    private func drawBadge(_ ctx: CGContext, _ safety: Safety, rightEdge: CGFloat, y: CGFloat, rowHeight rh: CGFloat,
                            compact: Bool, baseline: CGFloat, text: TextCache) -> CGFloat {
-        let (color, label, symbol) = badge
+        let color: NSColor, label: String, symbol: String
+        switch safety.level {
+        case .safe: (color, label, symbol) = (.systemGreen, "Safe", "checkmark")
+        case .protected: (color, label, symbol) = (.systemRed, "Protected", "lock.fill")
+        case .mixed: (color, label, symbol) = (.systemOrange, "Has safe items", "lock.open.fill")
+        }
         let h: CGFloat = 17
         let (l, lw) = text.line(label, .badge, maxWidth: nil)
         let w: CGFloat = compact ? h + 2 : 8 + 11 + 4 + lw + 8
@@ -316,9 +318,8 @@ final class FileListView: NSView {
         let p = convert(event.locationInWindow, from: nil)
         let r = rows[i]
         // Tooltip text explains the badge when hovering the right part of the row.
-        let tm = r.backup == .own ? "\nExcluded from Time Machine."
-            : r.backup == .inherited ? "\nExcluded from Time Machine by a parent folder." : ""
-        toolTip = p.x > bounds.width - 330 ? r.safety.reason + tm : nil
+        toolTip = p.x < 22 && r.backup == .own && state?.folderExcluded == false ? "Исключено из Time Machine"
+            : showsSafety && p.x > bounds.width - 230 ? r.safety.reason : nil
     }
 
     override func mouseDown(with event: NSEvent) {

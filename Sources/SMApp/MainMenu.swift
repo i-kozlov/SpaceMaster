@@ -52,6 +52,17 @@ enum MainMenu {
             add(m, "Sort by Date Modified", #selector(BrowserViewController.sortByDate(_:)), "3", [.command, .control])
             m.addItem(.separator())
             add(m, "Show Hidden Files", #selector(BrowserViewController.toggleHidden(_:)), ".", [.command, .shift])
+            add(m, "Show Safe/Protected", #selector(BrowserViewController.toggleSafety(_:)))
+            let icons = NSMenu()
+            for (tag, title) in ["Часы с крестиком", "Часы со стрелкой"].enumerated() {
+                let i = NSMenuItem(title: title, action: #selector(BrowserViewController.setTimeMachineIcon(_:)), keyEquivalent: "")
+                i.tag = tag; i.target = browser
+                i.image = NSImage(systemSymbolName: TimeMachine.symbols[tag], accessibilityDescription: title)
+                icons.addItem(i)
+            }
+            let iconItem = NSMenuItem(title: "Значок Time Machine", action: nil, keyEquivalent: "")
+            iconItem.submenu = icons
+            m.addItem(iconItem)
             m.addItem(.separator())
             add(m, "Toggle Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control], target: nil)
             add(m, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control], target: nil)

@@ -44,6 +44,10 @@ enum TimeMachine {
         }
         return false
     }
+
+    static let symbols = ["clock.badge.xmark", "clock.arrow.circlepath"]
+    /// The mark for excluded folders, chosen in View ▸ Time Machine Icon.
+    static var symbol: String { symbols[UserDefaults.standard.integer(forKey: "sm.tmIcon") == 1 ? 1 : 0] }
 }
 
 /// One directory as displayed in a column: raw listing + sorted/filtered rows.

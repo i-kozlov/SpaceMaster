@@ -23,6 +23,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
     private(set) var sortKey = SortKey(rawValue: UserDefaults.standard.string(forKey: "sm.sort") ?? "") ?? .size
     private(set) var sortReversed = UserDefaults.standard.bool(forKey: "sm.sortReversed")
     private(set) var showHidden = UserDefaults.standard.object(forKey: "sm.showHidden") as? Bool ?? true
+    private(set) var showSafety = UserDefaults.standard.object(forKey: "sm.showSafety") as? Bool ?? true
     private var filter = ""
     private var pendingPrefix: String?
     private var timer: Timer?
@@ -236,6 +237,9 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
             v.headers[2].title = r.name
             v.headers[2].detail = ByteFormat.string(r.size)
         } else { v.headers[2].title = ""; v.headers[2].detail = "" }
+        v.headers[0].excluded = parentState?.folderExcluded ?? false
+        v.headers[1].excluded = current.folderExcluded
+        v.headers[2].excluded = previewState?.folderExcluded ?? false
     }
 
     func updatePreview(ensureVisible: Bool = true) {
@@ -503,6 +507,17 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         renderAll(ensureVisible: true)
     }
 
+    @objc func toggleSafety(_ sender: Any?) {
+        showSafety.toggle()
+        UserDefaults.standard.set(showSafety, forKey: "sm.showSafety")
+        browserView.setShowsSafety(showSafety)
+    }
+
+    @objc func setTimeMachineIcon(_ sender: NSMenuItem) {
+        UserDefaults.standard.set(sender.tag, forKey: "sm.tmIcon")
+        browserView.redrawAll()
+    }
+
     @objc func focusSearch(_ sender: Any?) {
         guard let f = searchField else { return }
         view.window?.makeFirstResponder(f)
@@ -642,7 +657,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         if !failed.isEmpty, let w = view.window {
             let a = NSAlert()
             a.alertStyle = .warning
-            a.messageText = "Couldn't change the Time Machine exclusion"
+            a.messageText = "Не удалось изменить исключение Time Machine"
             a.informativeText = failed.prefix(4).joined(separator: "\n")
             a.beginSheetModal(for: w, completionHandler: nil)
         }
@@ -680,15 +695,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
                 self?.focus()
             }
         } else {
-            let a = NSAlert()
-            a.messageText = "Move \(what) to Trash?"
-            a.informativeText = "\(ByteFormat.string(bytes)). You can undo this with ⌘Z."
-            a.addButton(withTitle: "Move to Trash")
-            a.addButton(withTitle: "Cancel")
-            a.beginSheetModal(for: window) { [weak self] r in
-                if r == .alertFirstButtonReturn { self?.runDelete(rows, permanently: false) }
-                self?.focus()
-            }
+            runDelete(rows, permanently: false)
         }
     }
 
@@ -800,7 +807,7 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         add("Copy Path", #selector(copyPath(_:)))
         m.addItem(.separator())
         add("Rescan", #selector(rescan(_:)))
-        add("Exclude from Time Machine", #selector(toggleBackupExclusion(_:)))
+        add("Исключить из Time Machine", #selector(toggleBackupExclusion(_:)))
         m.addItem(.separator())
         add("Move to Trash", #selector(trashSelection(_:)))
         add("Delete Immediately…", #selector(deleteSelection(_:)))
@@ -814,18 +821,20 @@ final class BrowserViewController: NSViewController, NSMenuItemValidation, NSSea
         case #selector(toggleBackupExclusion(_:)):
             let rows = targets()
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .own }) {
-                item.title = "Remove Time Machine Exclusion"; return true
+                item.title = "Вернуть в Time Machine"; return true
             }
             if !rows.isEmpty && rows.allSatisfy({ $0.backup == .inherited }) {
-                item.title = "Excluded from Time Machine by a Parent Folder"; return false
+                item.title = "Исключено через папку выше"; return false
             }
-            item.title = "Exclude from Time Machine"; return !rows.isEmpty
+            item.title = "Исключить из Time Machine"; return !rows.isEmpty
         case #selector(undoTrash(_:)): return !undoStack.isEmpty
         case #selector(goBackAction(_:)): return canGoBack
         case #selector(goForwardAction(_:)): return canGoForward
         case #selector(goEnclosing(_:)): return cwd != "/"
         case #selector(goInto(_:)): return cursorRow?.isDirectory == true
         case #selector(toggleHidden(_:)): item.state = showHidden ? .on : .off; return true
+        case #selector(toggleSafety(_:)): item.state = showSafety ? .on : .off; return true
+        case #selector(setTimeMachineIcon(_:)): item.state = TimeMachine.symbol == TimeMachine.symbols[item.tag] ? .on : .off; return true
         case #selector(sortBySize(_:)): item.state = sortKey == .size ? .on : .off; return true
         case #selector(sortByName(_:)): item.state = sortKey == .name ? .on : .off; return true
         case #selector(sortByDate(_:)): item.state = sortKey == .modified ? .on : .off; return true

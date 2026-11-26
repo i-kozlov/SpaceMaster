@@ -9,6 +9,8 @@ extension NSToolbarItem.Identifier {
     static let reveal = NSToolbarItem.Identifier("sm.reveal")
     static let rescan = NSToolbarItem.Identifier("sm.rescan")
     static let filter = NSToolbarItem.Identifier("sm.filter")
+    static let up = NSToolbarItem.Identifier("sm.up")
+    static let safety = NSToolbarItem.Identifier("sm.safety")
 }
 
 @MainActor
@@ -74,7 +76,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSToolb
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .nav, .flexibleSpace, .sort, .reveal, .rescan, .trash, .delete, .filter]
+        [.toggleSidebar, .sidebarTrackingSeparator, .nav, .up, .flexibleSpace, .sort, .safety, .reveal, .rescan, .trash, .delete, .filter]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -113,6 +115,8 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate, NSToolb
             i.menu = m
             i.showsIndicator = true
             return i
+        case .up: return button(.up, "Up", "arrow.up", #selector(BrowserViewController.goEnclosing(_:)), tip: "На уровень выше (⌘↑)")
+        case .safety: return button(.safety, "Safe/Protected", "checkmark.shield", #selector(BrowserViewController.toggleSafety(_:)), tip: "Показать или скрыть столбец Safe/Protected")
         case .reveal: return button(.reveal, "Reveal", "magnifyingglass.circle", #selector(BrowserViewController.revealInFinder(_:)), tip: "Reveal in Finder")
         case .rescan: return button(.rescan, "Rescan", "arrow.clockwise", #selector(BrowserViewController.rescan(_:)), tip: "Rescan this folder")
         case .trash: return button(.trash, "Trash", "trash", #selector(BrowserViewController.trashSelection(_:)), tip: "Move to Trash (⌘⌫)")
